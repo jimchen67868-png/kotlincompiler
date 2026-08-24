@@ -32,7 +32,7 @@ class BuildEngine(
 
         val classesDir = File(workDir, "classes").apply { mkdirs() }
         runStep(BuildStep.CompileKotlin) {
-            val runner = KotlinCompilerRunner(context, tools.kotlinCompilerDex, tools.kotlinStdlibDex)
+            val runner = KotlinCompilerRunner(context)
             runner.compile(
                 sourceRoots = listOf(project.srcDir),
                 classpath = listOf(tools.androidJar, tools.kotlinStdlibJar),

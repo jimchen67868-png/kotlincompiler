@@ -18,6 +18,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        // Bundling a real compiler + IntelliJ-platform patches (see
+        // kotlinc-android dependency below) pushes us well past the 64K
+        // method limit for a single dex file.
+        multiDexEnabled = true
+
         // Only fetching a native aapt2 for arm64-v8a; see fetchNativeBuildTools below.
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -42,10 +47,6 @@ android {
         viewBinding = true
     }
 
-    // Native command-line tool binaries (d8, aapt2, zipalign) go in
-    // app/src/main/jniLibs/<abi>/ so Android's package manager extracts
-    // them alongside the app at install time with correct exec permissions.
-    // See README.md for how to obtain these binaries.
     sourceSets {
         getByName("main") {
             jniLibs.srcDirs("src/main/jniLibs")
@@ -61,43 +62,23 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // A real Kotlin compiler (2.0.0) with the IntelliJ-platform internals
+    // it embeds patched specifically for ART compatibility.
+    // Source: https://github.com/Cosmic-Ide/kotlinc-android
+    implementation("com.github.Cosmic-Ide.kotlinc-android:kotlinc:v2.0.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
-// ---------------------------------------------------------------------
-// Compiler-asset preparation
-//
-// Previously these had to be hand-downloaded and dexed manually (e.g. in
-// Termux). Instead, we resolve them as normal Gradle dependencies (which
-// benefits from Gradle's dependency cache + retries, far more reliable
-// than a bare wget), dex the compiler jar using the d8 that already ships
-// with the Android SDK build-tools installed in CI, and copy the SDK's
-// own android.jar — all automatically, every build.
-// ---------------------------------------------------------------------
-
-val kotlinCompilerJarConfig by configurations.creating {
-    isTransitive = false
-}
 val kotlinStdlibJarConfig by configurations.creating {
     isTransitive = false
 }
 
 dependencies {
-    kotlinCompilerJarConfig("org.jetbrains.kotlin:kotlin-compiler-embeddable:1.9.24")
-    kotlinStdlibJarConfig("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
+    kotlinStdlibJarConfig("org.jetbrains.kotlin:kotlin-stdlib:2.0.0")
 }
 
-/**
- * kotlin-compiler-embeddable.jar (and d8.jar) are large enough that d8
- * splits its output across classes.dex, classes2.dex, classes3.dex, ...
- * (the standard Android multidex convention) once the 64K-method limit
- * for a single dex file is exceeded. DexClassLoader can load all of them
- * together *if* they're packaged into one zip with those exact entry
- * names — same as how a multidex APK works — so we zip everything d8
- * produced instead of only keeping the first classes.dex (which silently
- * drops classes and causes ClassNotFoundException at runtime).
- */
 fun zipDexFiles(dexDir: File, outputZip: File) {
     val dexFiles = dexDir.listFiles { f -> f.name.matches(Regex("classes\\d*\\.dex")) }
         ?.sortedBy { f ->
@@ -119,13 +100,9 @@ fun zipDexFiles(dexDir: File, outputZip: File) {
 
 val prepareCompilerAssets by tasks.registering {
     group = "kotlincompiler"
-    description = "Downloads the Kotlin compiler + stdlib, dexes the compiler with d8, " +
-        "and copies the SDK's android.jar into src/main/assets/tools/"
+    description = "Copies kotlin-stdlib.jar + android.jar, and dexes d8, into assets/tools/"
 
     val assetsDir = file("src/main/assets/tools")
-    val dexOutDir = layout.buildDirectory.dir("compilerDex").get().asFile
-
-    val compilerJarProvider = kotlinCompilerJarConfig.elements.map { it.single().asFile }
     val stdlibJarProvider = kotlinStdlibJarConfig.elements.map { it.single().asFile }
 
     val sdkDir = android.sdkDirectory
@@ -133,9 +110,7 @@ val prepareCompilerAssets by tasks.registering {
     val d8LibJar = File(sdkDir, "build-tools/${android.buildToolsVersion}/lib/d8.jar")
     val platformAndroidJar = File(sdkDir, "platforms/android-${android.compileSdk}/android.jar")
 
-    inputs.files(kotlinCompilerJarConfig, kotlinStdlibJarConfig)
-    outputs.file(File(assetsDir, "kotlin-compiler-dex.jar"))
-    outputs.file(File(assetsDir, "kotlin-stdlib-dex.jar"))
+    inputs.files(kotlinStdlibJarConfig)
     outputs.file(File(assetsDir, "kotlin-stdlib.jar"))
     outputs.file(File(assetsDir, "android.jar"))
     outputs.file(File(assetsDir, "d8-dex.jar"))
@@ -143,52 +118,17 @@ val prepareCompilerAssets by tasks.registering {
     doLast {
         check(d8Script.exists()) {
             "d8 not found at ${d8Script.absolutePath}. Make sure build-tools " +
-                "${android.buildToolsVersion} is installed (sdkmanager \"build-tools;${android.buildToolsVersion}\")."
+                "${android.buildToolsVersion} is installed."
         }
         check(d8LibJar.exists()) {
-            "d8.jar not found at ${d8LibJar.absolutePath} (needed to dex d8 itself so it can " +
-                "run in-process on-device). Build-tools layout may have changed."
+            "d8.jar not found at ${d8LibJar.absolutePath}."
         }
         check(platformAndroidJar.exists()) {
-            "android.jar not found at ${platformAndroidJar.absolutePath}. Make sure " +
-                "platforms;android-${android.compileSdk} is installed."
+            "android.jar not found at ${platformAndroidJar.absolutePath}."
         }
 
         assetsDir.mkdirs()
-        dexOutDir.deleteRecursively()
-        dexOutDir.mkdirs()
 
-        // Dex the Kotlin compiler itself.
-        exec {
-            commandLine(
-                d8Script.absolutePath,
-                "--min-api", "26",
-                "--output", dexOutDir.absolutePath,
-                compilerJarProvider.get().absolutePath
-            )
-        }
-        zipDexFiles(dexOutDir, File(assetsDir, "kotlin-compiler-dex.jar"))
-
-        // The compiler itself is written in Kotlin, so its own DexClassLoader
-        // needs kotlin-stdlib classes (e.g. kotlin.jvm.internal.Intrinsics)
-        // available at runtime — separately from the plain kotlin-stdlib.jar
-        // we also ship as a -classpath argument for compiling the *user's*
-        // source. Dex a copy for the compiler's own runtime.
-        val stdlibDexOutDir = layout.buildDirectory.dir("stdlibDex").get().asFile
-        stdlibDexOutDir.deleteRecursively()
-        stdlibDexOutDir.mkdirs()
-        exec {
-            commandLine(
-                d8Script.absolutePath,
-                "--min-api", "26",
-                "--output", stdlibDexOutDir.absolutePath,
-                stdlibJarProvider.get().absolutePath
-            )
-        }
-        zipDexFiles(stdlibDexOutDir, File(assetsDir, "kotlin-stdlib-dex.jar"))
-
-        // Dex d8 itself (it's pure JVM bytecode) so it too can run in-process
-        // on-device via DexClassLoader instead of needing a native ARM binary.
         val d8DexOutDir = layout.buildDirectory.dir("d8Dex").get().asFile
         d8DexOutDir.deleteRecursively()
         d8DexOutDir.mkdirs()
@@ -208,18 +148,6 @@ val prepareCompilerAssets by tasks.registering {
         println("Compiler assets ready in ${assetsDir.absolutePath}")
     }
 }
-
-// ---------------------------------------------------------------------
-// Native aapt2 binary
-//
-// aapt2 is C++, not JVM bytecode, so unlike d8/kotlinc it can't be dexed
-// and run in-process — it needs a real ARM binary. Termux's aapt2 package
-// dynamically links against several Termux-prefix shared libraries
-// (libprotobuf, libc++_shared, etc.) that won't resolve from inside a
-// different app's sandbox, so we pull from AndroidIDE's androidide-tools
-// releases instead, which are built specifically to run standalone inside
-// a sandboxed Android app (exactly our situation).
-// ---------------------------------------------------------------------
 
 val fetchNativeBuildTools by tasks.registering {
     group = "kotlincompiler"
@@ -255,12 +183,7 @@ val fetchNativeBuildTools by tasks.registering {
         }
 
         val aapt2Binary = extractDir.walkTopDown().firstOrNull { it.isFile && it.name == "aapt2" }
-            ?: throw GradleException(
-                "Could not find an 'aapt2' binary inside the downloaded archive from " +
-                    "$downloadUrl. The AndroidIDE release layout may have changed — check " +
-                    "https://github.com/AndroidIDEOfficial/androidide-tools/releases manually " +
-                    "and update the toolsVersion / path logic in this task."
-            )
+            ?: throw GradleException("Could not find an 'aapt2' binary inside the downloaded archive.")
 
         aapt2Binary.copyTo(aapt2Out, overwrite = true)
         aapt2Out.setExecutable(true, false)
@@ -269,9 +192,6 @@ val fetchNativeBuildTools by tasks.registering {
     }
 }
 
-// Hook into every variant's asset-merge and native-lib-merge steps so
-// everything exists before packaging, regardless of AGP task-name specifics
-// across versions (hence the broad name matching).
 afterEvaluate {
     tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
         .configureEach { dependsOn(prepareCompilerAssets) }
