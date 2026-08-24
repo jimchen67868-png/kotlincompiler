@@ -56,7 +56,9 @@ class BuildLogActivity : AppCompatActivity() {
     }
 
     private fun appendLog(line: String) {
-        logBuilder.append(line).append('\n')
-        binding.textBuildLog.text = logBuilder.toString()
+        runOnUiThread {
+            logBuilder.append(line).append('\n')
+            binding.textBuildLog.text = logBuilder.toString()
+        }
     }
 }
