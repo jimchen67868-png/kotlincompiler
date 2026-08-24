@@ -65,8 +65,8 @@ dependencies {
     // A real Kotlin compiler (2.0.0) with the IntelliJ-platform internals
     // it embeds patched specifically for ART compatibility.
     // Source: https://github.com/Cosmic-Ide/kotlinc-android
-    implementation("org.cosmic.ide:kotlinc-android:2.0.0")
-    implementation("org.cosmic.ide:jaxp:jdk17u-a831b7a")
+    implementation("com.github.Cosmic-Ide.kotlinc-android:kotlinc-android:v2.0.0")
+    implementation("com.github.Cosmic-Ide.kotlinc-android:jaxp:v2.0.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
