@@ -1,0 +1,9 @@
+This directory must contain, before you can build a working APK of this app:
+
+  kotlin-compiler-dex.jar   — kotlin-compiler-embeddable.jar run through d8
+  android.jar               — from $ANDROID_HOME/platforms/android-34/android.jar
+  kotlin-stdlib.jar         — plain (non-dexed) Kotlin stdlib jar, used as
+                               compiler classpath input
+
+See the project README.md, section "Preparing the compiler assets",
+for the exact commands to produce kotlin-compiler-dex.jar.

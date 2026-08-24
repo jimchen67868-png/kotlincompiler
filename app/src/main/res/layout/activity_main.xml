@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center">
+
+    <TextView
+        android:id="@+id/textSelectedProject"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/no_project_selected"
+        android:paddingBottom="16dp" />
+
+    <Button
+        android:id="@+id/buttonPickProject"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/pick_project_folder" />
+
+    <Button
+        android:id="@+id/buttonBuild"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:enabled="false"
+        android:text="@string/build_apk" />
+
+</LinearLayout>

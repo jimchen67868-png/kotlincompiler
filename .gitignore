@@ -1,0 +1,12 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+app/src/main/jniLibs/
+app/src/main/assets/tools/*.jar
+!app/src/main/assets/tools/PUT_TOOL_JARS_HERE.txt
