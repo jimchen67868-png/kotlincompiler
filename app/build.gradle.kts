@@ -62,6 +62,11 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // kotlinc-android's bundled compiler jar uses Guava's
+    // LinkedHashMultimap but never declares Guava as a dependency —
+    // NoClassDefFoundError confirmed it's missing at runtime.
+    implementation("com.google.guava:guava:33.2.1-android")
+
     // A real Kotlin compiler (2.0.0) with the IntelliJ-platform internals
     // it embeds patched specifically for ART compatibility.
     // Source: https://github.com/Cosmic-Ide/kotlinc-android
