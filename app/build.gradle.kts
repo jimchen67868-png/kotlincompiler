@@ -70,7 +70,12 @@ dependencies {
     // A real Kotlin compiler (2.0.0) with the IntelliJ-platform internals
     // it embeds patched specifically for ART compatibility.
     // Source: https://github.com/Cosmic-Ide/kotlinc-android
-    implementation("com.github.Cosmic-Ide.kotlinc-android:kotlinc-android:v2.0.0")
+    implementation("com.github.Cosmic-Ide.kotlinc-android:kotlinc-android:v2.0.0") {
+        // hiddenapibypass defeats Android's hidden-API restrictions via
+        // reflection — the likely trigger for the SpyMax heuristic flag.
+        // UNVERIFIED whether kotlinc-android still works without it.
+        exclude(group = "org.lsposed.hiddenapibypass", module = "hiddenapibypass")
+    }
     implementation("com.github.Cosmic-Ide.kotlinc-android:jaxp:v2.0.0")
 
     testImplementation("junit:junit:4.13.2")
