@@ -128,7 +128,16 @@ object ApkPackager {
             outputApk.outputStream().use { fos ->
                 java.util.zip.ZipOutputStream(fos).use { zos ->
                     zip.entries().asSequence().forEach { entry ->
-                        zos.putNextEntry(java.util.zip.ZipEntry(entry.name))
+                        val newEntry = java.util.zip.ZipEntry(entry.name)
+                        if (entry.method == java.util.zip.ZipEntry.STORED) {
+                            newEntry.method = java.util.zip.ZipEntry.STORED
+                            newEntry.size = entry.size
+                            newEntry.compressedSize = entry.size
+                            newEntry.crc = entry.crc
+                        } else {
+                            newEntry.method = java.util.zip.ZipEntry.DEFLATED
+                        }
+                        zos.putNextEntry(newEntry)
                         zip.getInputStream(entry).use { it.copyTo(zos) }
                         zos.closeEntry()
                     }
