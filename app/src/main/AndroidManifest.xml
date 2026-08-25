@@ -7,8 +7,11 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <!-- Needed if you offer "install the APK you just built" -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- REQUEST_INSTALL_PACKAGES removed: not used yet (no "install the
+         built APK" feature exists in the current build flow), and this
+         permission alone is a strong heuristic-AV trigger since it's
+         also exactly what a dropper/RAT requests. Re-add only when that
+         feature is actually implemented. -->
 
     <application
         android:name=".CompilerApp"
