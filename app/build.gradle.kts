@@ -47,6 +47,15 @@ android {
         viewBinding = true
     }
 
+    // Modern AGP defaults to NOT physically extracting native libraries
+    // into nativeLibraryDir at install time. Force legacy extraction so
+    // ToolPaths.aapt2Binary's expected file path actually exists on disk.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     sourceSets {
         getByName("main") {
             jniLibs.srcDirs("src/main/jniLibs")
