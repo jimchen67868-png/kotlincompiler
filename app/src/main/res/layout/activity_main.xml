@@ -19,6 +19,20 @@
         android:layout_height="wrap_content"
         android:text="@string/pick_project_folder" />
 
+    <TextView
+        android:id="@+id/textSelectedOutput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/no_output_selected"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp" />
+
+    <Button
+        android:id="@+id/buttonPickOutput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/pick_output_folder" />
+
     <Button
         android:id="@+id/buttonBuild"
         android:layout_width="match_parent"

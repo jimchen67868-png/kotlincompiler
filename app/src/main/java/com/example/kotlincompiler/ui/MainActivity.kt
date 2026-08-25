@@ -17,11 +17,18 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var selectedProjectDir: File? = null
+    private var outputFolderUri: Uri? = null
 
     private val pickProjectFolder = registerForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         uri?.let { onProjectFolderPicked(it) }
+    }
+
+    private val pickOutputFolder = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let { onOutputFolderPicked(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,10 +40,16 @@ class MainActivity : AppCompatActivity() {
             pickProjectFolder.launch(null)
         }
 
+        binding.buttonPickOutput.setOnClickListener {
+            pickOutputFolder.launch(null)
+        }
+
         binding.buttonBuild.setOnClickListener {
             val dir = selectedProjectDir ?: return@setOnClickListener
+            val outputUri = outputFolderUri ?: return@setOnClickListener
             val intent = Intent(this, BuildLogActivity::class.java).apply {
                 putExtra(BuildLogActivity.EXTRA_PROJECT_DIR, dir.absolutePath)
+                putExtra(BuildLogActivity.EXTRA_OUTPUT_FOLDER_URI, outputUri.toString())
             }
             startActivity(intent)
         }
@@ -64,12 +77,28 @@ class MainActivity : AppCompatActivity() {
             if (copiedOk) {
                 selectedProjectDir = destDir
                 binding.textSelectedProject.text = "Project ready: ${destDir.absolutePath}"
-                binding.buttonBuild.isEnabled = true
+                updateBuildButtonEnabled()
             } else {
                 binding.textSelectedProject.text = "Failed to copy selected folder. Try again."
-                binding.buttonBuild.isEnabled = false
+                selectedProjectDir = null
+                updateBuildButtonEnabled()
             }
         }
+    }
+
+    private fun onOutputFolderPicked(treeUri: Uri) {
+        contentResolver.takePersistableUriPermission(
+            treeUri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        outputFolderUri = treeUri
+        val folderName = DocumentFile.fromTreeUri(this, treeUri)?.name ?: treeUri.toString()
+        binding.textSelectedOutput.text = "Output folder: $folderName"
+        updateBuildButtonEnabled()
+    }
+
+    private fun updateBuildButtonEnabled() {
+        binding.buttonBuild.isEnabled = selectedProjectDir != null && outputFolderUri != null
     }
 
     /** Recursively copies a SAF DocumentFile tree into a real filesystem directory. */
@@ -94,4 +123,3 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 }
-
