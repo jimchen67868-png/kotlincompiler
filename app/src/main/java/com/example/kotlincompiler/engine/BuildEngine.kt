@@ -66,6 +66,12 @@ class BuildEngine(
                 args = listOf(
                     "link", "-I", tools.androidJar.absolutePath,
                     "--manifest", project.manifestFile.absolutePath,
+                    // Without these, aapt2 defaults to a very old SDK
+                    // baseline when the manifest has no <uses-sdk>
+                    // element — modern Android then refuses to install
+                    // the APK as "built for an older version of Android".
+                    "--min-sdk-version", "26",
+                    "--target-sdk-version", "34",
                     "-o", linkedApk.absolutePath,
                     compiledResZip.absolutePath
                 ),
