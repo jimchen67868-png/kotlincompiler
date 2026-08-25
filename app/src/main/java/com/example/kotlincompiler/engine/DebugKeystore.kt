@@ -23,9 +23,8 @@ object DebugKeystore {
     private val PASSWORD = "android".toCharArray()
 
     fun getOrCreate(context: Context): SigningIdentity {
-        if (Security.getProvider("BC") == null) {
-            Security.addProvider(BouncyCastleProvider())
-        }
+        Security.removeProvider("BC")
+        Security.insertProviderAt(BouncyCastleProvider(), 1)
 
         val ksFile = File(context.filesDir, "debug.p12")
         val keyStore = KeyStore.getInstance("PKCS12", "BC")
