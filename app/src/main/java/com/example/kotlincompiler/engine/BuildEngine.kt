@@ -91,8 +91,8 @@ class BuildEngine(
 
         val finalApk = File(project.outputDir, "${project.applicationId}.apk")
         runStep(BuildStep.SignApk) {
-            val debugKeystore = DebugKeystore.getOrCreate(context)
-            ApkSigner.signWithDebugKey(alignedApk, finalApk, debugKeystore)
+            val identity = DebugKeystore.getOrCreate(context)
+            ApkSigner.signWithDebugKey(alignedApk, finalApk, identity)
             ProcessRunner.Result(0, "Signed -> ${finalApk.absolutePath}", "")
         }
 
@@ -138,14 +138,3 @@ object ApkPackager {
     }
 }
 
-/** Placeholder: generates (once) or loads a local debug .p12 keystore. */
-object DebugKeystore {
-    fun getOrCreate(context: Context): File {
-        val ks = File(context.filesDir, "debug.p12")
-        if (!ks.exists()) {
-            // Generate a self-signed cert with java.security.KeyPairGenerator
-            // + a minimal PKCS12 writer. See README "Debug keystore generation".
-        }
-        return ks
-    }
-}

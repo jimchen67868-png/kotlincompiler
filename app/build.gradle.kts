@@ -87,6 +87,11 @@ dependencies {
     }
     implementation("com.github.Cosmic-Ide.kotlinc-android:jaxp:v2.0.0")
 
+    // Real APK signing via Google's own apksig library.
+    implementation("com.android.tools.build:apksig:8.5.2")
+    // For generating a self-signed debug certificate.
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
