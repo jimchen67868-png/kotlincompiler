@@ -4,14 +4,6 @@ import com.example.kotlincompiler.ToolPaths
 import android.content.Context
 import java.io.File
 
-/**
- * Orchestrates: kotlinc (in-process, dexed) -> d8 (in-process, dexed) ->
- * aapt2 compile/link (native ARM binary) -> package -> zipalign
- * (pure Kotlin) -> sign.
- *
- * Each step is intentionally a separate function returning a StepResult
- * so the UI (BuildLogActivity) can stream progress and stop on first failure.
- */
 class BuildEngine(
     private val context: Context,
     private val tools: ToolPaths,
@@ -30,11 +22,45 @@ class BuildEngine(
         workDir.deleteRecursively()
         workDir.mkdirs()
 
+        val compiledResZip = File(workDir, "compiled_res.zip")
+        runStep(BuildStep.CompileResources) {
+            ProcessRunner.run(
+                binary = tools.aapt2Binary,
+                args = listOf("compile", "--dir", project.resDir.absolutePath, "-o", compiledResZip.absolutePath),
+                workingDir = workDir
+            )
+        }
+
+        val linkedApk = File(workDir, "linked.apk")
+        val rTxtFile = File(workDir, "R.txt")
+        runStep(BuildStep.LinkResources) {
+            ProcessRunner.run(
+                binary = tools.aapt2Binary,
+                args = listOf(
+                    "link", "-I", tools.androidJar.absolutePath,
+                    "--manifest", project.manifestFile.absolutePath,
+                    "--min-sdk-version", "26",
+                    "--target-sdk-version", "34",
+                    "--output-text-symbols", rTxtFile.absolutePath,
+                    "-o", linkedApk.absolutePath,
+                    compiledResZip.absolutePath
+                ),
+                workingDir = workDir
+            )
+        }
+
+        val rClassDir = File(workDir, "r_src").apply { mkdirs() }
+        runStep(BuildStep.GenerateRClass) {
+            val packageName = extractManifestPackage(project.manifestFile) ?: project.applicationId
+            RClassGenerator.generate(rTxtFile, packageName, rClassDir)
+            ProcessRunner.Result(0, "Generated R.kt for package $packageName", "")
+        }
+
         val classesDir = File(workDir, "classes").apply { mkdirs() }
         runStep(BuildStep.CompileKotlin) {
             val runner = KotlinCompilerRunner(context)
             runner.compile(
-                sourceRoots = listOf(project.srcDir),
+                sourceRoots = listOf(project.srcDir, rClassDir),
                 classpath = listOf(tools.androidJar, tools.kotlinStdlibJar),
                 destinationDir = classesDir
             )
@@ -47,35 +73,6 @@ class BuildEngine(
                 classFiles = classesDir.walkTopDown().filter { it.extension == "class" }.toList(),
                 libraryJar = tools.androidJar,
                 outputDir = dexDir
-            )
-        }
-
-        val compiledResZip = File(workDir, "compiled_res.zip")
-        runStep(BuildStep.CompileResources) {
-            ProcessRunner.run(
-                binary = tools.aapt2Binary,
-                args = listOf("compile", "--dir", project.resDir.absolutePath, "-o", compiledResZip.absolutePath),
-                workingDir = workDir
-            )
-        }
-
-        val linkedApk = File(workDir, "linked.apk")
-        runStep(BuildStep.LinkResources) {
-            ProcessRunner.run(
-                binary = tools.aapt2Binary,
-                args = listOf(
-                    "link", "-I", tools.androidJar.absolutePath,
-                    "--manifest", project.manifestFile.absolutePath,
-                    // Without these, aapt2 defaults to a very old SDK
-                    // baseline when the manifest has no <uses-sdk>
-                    // element — modern Android then refuses to install
-                    // the APK as "built for an older version of Android".
-                    "--min-sdk-version", "26",
-                    "--target-sdk-version", "34",
-                    "-o", linkedApk.absolutePath,
-                    compiledResZip.absolutePath
-                ),
-                workingDir = workDir
             )
         }
 
@@ -105,7 +102,6 @@ class BuildEngine(
         return finalApk
     }
 
-    /** Runs a step, times it, reports it, and throws on failure to halt the pipeline. */
     private fun runStep(step: BuildStep, action: () -> ProcessRunner.Result) {
         val start = System.currentTimeMillis()
         val result = action()
@@ -115,9 +111,14 @@ class BuildEngine(
             throw BuildException("${step.label} failed", result.combinedLog)
         }
     }
+
+    private fun extractManifestPackage(manifestFile: File): String? {
+        if (!manifestFile.exists()) return null
+        val text = manifestFile.readText()
+        return Regex("package\\s*=\\s*\"([^\"]+)\"").find(text)?.groupValues?.get(1)
+    }
 }
 
-/** Merges classes.dex (and classesN.dex for multidex) into the aapt2-linked resource APK. */
 object ApkPackager {
     fun mergeDexIntoApk(linkedApk: File, dexDir: File, outputApk: File) {
         val dexFiles = dexDir.listFiles { f -> f.extension == "dex" }
@@ -152,4 +153,3 @@ object ApkPackager {
         }
     }
 }
-

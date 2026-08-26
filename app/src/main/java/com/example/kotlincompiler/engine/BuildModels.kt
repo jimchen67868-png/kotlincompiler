@@ -16,10 +16,11 @@ data class KotlinProject(
 )
 
 sealed class BuildStep(val label: String) {
-    object CompileKotlin : BuildStep("Compiling Kotlin sources")
-    object DexClasses : BuildStep("Converting bytecode to DEX")
     object CompileResources : BuildStep("Compiling resources (aapt2)")
     object LinkResources : BuildStep("Linking resources + manifest")
+    object GenerateRClass : BuildStep("Generating R class")
+    object CompileKotlin : BuildStep("Compiling Kotlin sources")
+    object DexClasses : BuildStep("Converting bytecode to DEX")
     object PackageApk : BuildStep("Packaging APK")
     object AlignApk : BuildStep("Zip-aligning APK")
     object SignApk : BuildStep("Signing APK")
