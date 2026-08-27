@@ -12,9 +12,10 @@ object EcjRunner {
 
         val cp = classpath.joinToString(File.pathSeparator) { it.absolutePath }
         val commandLine = listOf(
-            "-source", "17",
-            "-target", "17",
+            "-source", "1.8",
+            "-target", "1.8",
             "-nowarn",
+            "-bootclasspath", "\"$cp\"",
             "-classpath", "\"$cp\"",
             "-d", "\"${destinationDir.absolutePath}\"",
             "\"${javaFile.absolutePath}\""
