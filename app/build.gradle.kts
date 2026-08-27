@@ -95,6 +95,11 @@ dependencies {
     // For generating a self-signed debug certificate.
     implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
 
+    // ECJ (Eclipse's Java compiler): self-contained, no deep JDK-
+    // internal dependencies, so no ART-compatibility risk like real
+    // javac would have. Used to compile a real R.java.
+    implementation("org.eclipse.jdt:ecj:3.37.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

@@ -49,19 +49,19 @@ class BuildEngine(
             )
         }
 
-        val rClassDir = File(workDir, "r_src").apply { mkdirs() }
+        val rJavaDir = File(workDir, "r_src").apply { mkdirs() }
+        val classesDir = File(workDir, "classes").apply { mkdirs() }
         runStep(BuildStep.GenerateRClass) {
             val packageName = extractManifestPackage(project.manifestFile) ?: project.applicationId
-            RClassGenerator.generate(rTxtFile, packageName, rClassDir)
-            ProcessRunner.Result(0, "Generated R.kt for package $packageName", "")
+            val rJavaFile = RJavaGenerator.generate(rTxtFile, packageName, rJavaDir)
+            EcjRunner.compile(rJavaFile, listOf(tools.androidJar), classesDir)
         }
 
-        val classesDir = File(workDir, "classes").apply { mkdirs() }
         runStep(BuildStep.CompileKotlin) {
             val runner = KotlinCompilerRunner(context)
             runner.compile(
-                sourceRoots = listOf(project.srcDir, rClassDir),
-                classpath = listOf(tools.androidJar, tools.kotlinStdlibJar),
+                sourceRoots = listOf(project.srcDir),
+                classpath = listOf(tools.androidJar, tools.kotlinStdlibJar, classesDir),
                 destinationDir = classesDir
             )
         }
@@ -128,28 +128,43 @@ object ApkPackager {
         java.util.zip.ZipFile(linkedApk).use { zip ->
             outputApk.outputStream().use { fos ->
                 java.util.zip.ZipOutputStream(fos).use { zos ->
-                    zip.entries().asSequence().forEach { entry ->
-                        val newEntry = java.util.zip.ZipEntry(entry.name)
-                        if (entry.method == java.util.zip.ZipEntry.STORED) {
-                            newEntry.method = java.util.zip.ZipEntry.STORED
-                            newEntry.size = entry.size
-                            newEntry.compressedSize = entry.size
-                            newEntry.crc = entry.crc
-                        } else {
-                            newEntry.method = java.util.zip.ZipEntry.DEFLATED
-                        }
-                        zos.putNextEntry(newEntry)
-                        zip.getInputStream(entry).use { it.copyTo(zos) }
-                        zos.closeEntry()
-                    }
+                    zos.setLevel(9)
+
+                    val allEntries = zip.entries().asSequence().toList()
+                    val manifestEntry = allEntries.find { it.name == "AndroidManifest.xml" }
+                    val otherEntries = allEntries.filterNot { it.name == "AndroidManifest.xml" }
+
+                    manifestEntry?.let { writeEntry(zip, it, zos) }
+
                     dexFiles.forEachIndexed { index, dexFile ->
                         val entryName = if (index == 0) "classes.dex" else "classes${index + 1}.dex"
                         zos.putNextEntry(java.util.zip.ZipEntry(entryName))
                         dexFile.inputStream().use { it.copyTo(zos) }
                         zos.closeEntry()
                     }
+
+                    otherEntries.forEach { entry -> writeEntry(zip, entry, zos) }
                 }
             }
         }
+    }
+
+    private fun writeEntry(
+        zip: java.util.zip.ZipFile,
+        entry: java.util.zip.ZipEntry,
+        zos: java.util.zip.ZipOutputStream
+    ) {
+        val newEntry = java.util.zip.ZipEntry(entry.name)
+        if (entry.method == java.util.zip.ZipEntry.STORED) {
+            newEntry.method = java.util.zip.ZipEntry.STORED
+            newEntry.size = entry.size
+            newEntry.compressedSize = entry.size
+            newEntry.crc = entry.crc
+        } else {
+            newEntry.method = java.util.zip.ZipEntry.DEFLATED
+        }
+        zos.putNextEntry(newEntry)
+        zip.getInputStream(entry).use { it.copyTo(zos) }
+        zos.closeEntry()
     }
 }
