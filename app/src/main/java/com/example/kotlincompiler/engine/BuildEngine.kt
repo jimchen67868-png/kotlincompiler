@@ -49,19 +49,19 @@ class BuildEngine(
             )
         }
 
-        val rJavaDir = File(workDir, "r_src").apply { mkdirs() }
+        val rClassDir = File(workDir, "r_src").apply { mkdirs() }
         val classesDir = File(workDir, "classes").apply { mkdirs() }
         runStep(BuildStep.GenerateRClass) {
             val packageName = extractManifestPackage(project.manifestFile) ?: project.applicationId
-            val rJavaFile = RJavaGenerator.generate(rTxtFile, packageName, rJavaDir)
-            EcjRunner.compile(rJavaFile, listOf(tools.androidJar), classesDir)
+            RClassGenerator.generate(rTxtFile, packageName, rClassDir)
+            ProcessRunner.Result(0, "Generated R.kt for package $packageName", "")
         }
 
         runStep(BuildStep.CompileKotlin) {
             val runner = KotlinCompilerRunner(context)
             runner.compile(
-                sourceRoots = listOf(project.srcDir),
-                classpath = listOf(tools.androidJar, tools.kotlinStdlibJar, classesDir),
+                sourceRoots = listOf(project.srcDir, rClassDir),
+                classpath = listOf(tools.androidJar, tools.kotlinStdlibJar),
                 destinationDir = classesDir
             )
         }
