@@ -69,8 +69,9 @@ class BuildEngine(
         val dexDir = File(workDir, "dex").apply { mkdirs() }
         runStep(BuildStep.DexClasses) {
             val runner = D8Runner(context, tools.d8Dex)
+            val userClassFiles = classesDir.walkTopDown().filter { it.extension == "class" }.toList()
             runner.dex(
-                classFiles = classesDir.walkTopDown().filter { it.extension == "class" }.toList(),
+                classFiles = userClassFiles + listOf(tools.kotlinStdlibJar),
                 libraryJar = tools.androidJar,
                 outputDir = dexDir
             )
