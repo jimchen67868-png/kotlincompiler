@@ -24,11 +24,20 @@ object EcjRunner {
         val outWriter = StringWriter()
         val errWriter = StringWriter()
 
+        val originalSpecVersion = System.getProperty("java.specification.version")
+        System.setProperty("java.specification.version", "1.8")
+
         val success = try {
             BatchCompiler.compile(commandLine, PrintWriter(outWriter), PrintWriter(errWriter), null)
         } catch (e: Exception) {
             errWriter.write("ECJ invocation error: ${e.stackTraceToString()}")
             false
+        } finally {
+            if (originalSpecVersion != null) {
+                System.setProperty("java.specification.version", originalSpecVersion)
+            } else {
+                System.clearProperty("java.specification.version")
+            }
         }
 
         val log = outWriter.toString() + errWriter.toString()
